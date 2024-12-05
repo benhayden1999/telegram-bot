@@ -1,7 +1,6 @@
-const messageService = require("./messageService");
-const userService = require("./userService");
-
-module.exports = { ...messageService, ...userService };
+const dbAddInvocie = require("./supabaseAddInvoice");
+const dbGetInvoice = require("./supabaseRetrieveInvoice");
+// When new file added, add here
 
 const {
   insertMessageData,
@@ -9,3 +8,8 @@ const {
   getUserData,
   updateUserData,
 } = require("./services/supabase");
+
+module.exports = {
+  ...dbAddInvoice,
+  ...dbGetInvoice,
+};
