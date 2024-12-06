@@ -2,6 +2,8 @@ const config = require("../config");
 const { Telegraf, Context } = require("telegraf");
 const { dbAddInvoice } = require("./services/supabase");
 const { dbGetBotInfo } = require("./services/supabase");
+const { dbGetInvoice } = require("./services/supabase");
+const { createThreadAndRun } = require("./services/openai");
 
 const BOT_TOKEN = config.BOT_TOKEN;
 
@@ -22,7 +24,7 @@ bot.on("text", async (ctx) => {
       chat_id: ctx.chat.id,
       title: "Premium Message", // The product name
       description: `Your Message: "${ctx.message.text}"`, // Product description
-      payload: "invoice_payload", // A custom identifier for this invoice
+      payload: ctx.message.message_id, // A custom identifier for this invoice
       provider_token: "",
       currency: "XTR", // Stars currency
       prices: [
@@ -63,16 +65,31 @@ bot.on("pre_checkout_query", async (ctx) => {
   }
 });
 
-// Handle Successful Payments
 bot.on("successful_payment", async (ctx) => {
   try {
-    await console.log(ctx);
-
-    ctx.reply(
-      `🎉 Payment successful! \n\n💵 Amount: ${
-        total_amount / 100
-      } ${currency} \n📦 Invoice Payload: ${invoice_payload}`
+    const paymentDetails = await dbGetInvoice(
+      ctx.botInfo.id,
+      ctx.from.id,
+      ctx.message.successful_payment.invoice_payload
     );
+
+    if (!paymentDetails) {
+      throw new Error("Payment details not found");
+    }
+
+    const { gpt_api, message_text, thread_id, assistant_id } = paymentDetails;
+    console.log("Payment successful:", paymentDetails);
+
+    // Call createThreadAndRun with the appropriate parameters
+    const response = await createThreadAndRun(
+      gpt_api,
+      assistant_id,
+      message_text,
+      thread_id
+    );
+    console.log("Generated response:", response);
+    // You can now use the response, e.g., send it back to the user
+    ctx.reply(response);
   } catch (error) {
     console.error("Error handling successful payment:", error);
     ctx.reply("Oops! Something went wrong while processing the payment.");
