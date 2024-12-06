@@ -1,15 +1,12 @@
-const dbAddInvocie = require("./supabaseAddInvoice");
-const dbGetInvoice = require("./supabaseRetrieveInvoice");
+const dbAddInvoice = require("./supabaseAddInvoice");
+const dbGetInvoice = require("./supabaseGetInvoice");
+const dbGetBotInfo = require("./supabaseGetBotInfo");
 // When new file added, add here
 
-const {
-  insertMessageData,
-  getMessageData,
-  getUserData,
-  updateUserData,
-} = require("./services/supabase");
+// const {} = require("./services/supabase");
 
 module.exports = {
   ...dbAddInvoice,
   ...dbGetInvoice,
+  ...dbGetBotInfo,
 };
