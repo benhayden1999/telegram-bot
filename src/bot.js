@@ -3,23 +3,72 @@ const { Telegraf, Context } = require("telegraf");
 const { dbAddInvoice } = require("./services/supabase");
 const { dbGetBotInfo } = require("./services/supabase");
 const { dbGetInvoice } = require("./services/supabase");
-const { createThreadAndRun } = require("./services/openai");
+const { dbUpdateBotPrice } = require("./services/supabase");
+const { createThreadAndRun } = require("./services/openai/runCompletion");
 
 const BOT_TOKEN = config.BOT_TOKEN;
 
 // Initialize the bot
 const bot = new Telegraf(BOT_TOKEN);
 
-// Listen for text messages
-bot.on("text", async (ctx) => {
-  let price;
-  try {
+let botId;
+let price;
+let ownerId;
+
+// Middleware to set botInfo
+bot.use(async (ctx, next) => {
+  console.log(ctx.message.from);
+  if (ctx.botInfo) {
     const botInfo = await dbGetBotInfo(ctx.botInfo.id);
     console.log(botInfo);
-    price = botInfo[0].bot_price;
-    console.log(price);
-    // Prepare the invoice parameters
+    // Store bot information in ctx.state
+    ctx.state.botId = ctx.botInfo.id;
+    ctx.state.price = botInfo[0].bot_price;
+    ctx.state.ownerId = botInfo[0].owner_id;
+  }
+  await next(); // Pass control to the next middleware/handler
+});
 
+bot.command("changeprice", async (ctx) => {
+  const ownerId = ctx.state.ownerId; // Access ownerId from ctx.state
+  if (ctx.from.id !== ownerId) {
+    return ctx.reply("You are not authorized to perform this action.");
+  } else {
+    ctx.reply("Please enter the new price for your bot.", {
+      reply_markup: {
+        force_reply: true,
+      },
+    });
+  }
+});
+
+bot.on("text", async (ctx) => {
+  console.log("Received text message:", ctx.message.text);
+
+  // Check if the message is a reply to the price prompt
+  if (
+    ctx.message.reply_to_message &&
+    ctx.message.reply_to_message.text ===
+      "Please enter the new price for your bot."
+  ) {
+    const ownerId = ctx.state.ownerId; // Access ownerId from ctx.state
+    if (ctx.from.id !== ownerId) {
+      return ctx.reply("You are not authorized to perform this action.");
+    }
+
+    const newPrice = parseFloat(ctx.message.text);
+    if (isNaN(newPrice)) {
+      return ctx.reply("Invalid number. Try again /changeprice.");
+    }
+
+    // Update the bot price in the database
+    await dbUpdateBotPrice(ctx.state.botId, newPrice);
+    return ctx.reply(`The new price for your bot has been set to ${newPrice}.`);
+  }
+
+  // Handle other text messages
+  try {
+    // Define the invoice parameters
     const invoiceParams = {
       chat_id: ctx.chat.id,
       title: "Premium Message", // The product name
@@ -28,7 +77,7 @@ bot.on("text", async (ctx) => {
       provider_token: "",
       currency: "XTR", // Stars currency
       prices: [
-        { label: "Total", amount: price }, // Price in smallest currency unit (e.g., 500 Stars)
+        { label: "Total", amount: ctx.state.price }, // Price in smallest currency unit (e.g., 500 Stars)
       ],
     };
 
@@ -40,14 +89,16 @@ bot.on("text", async (ctx) => {
     console.error("Error sending invoice:", error);
     ctx.reply("Oops! Something went wrong while sending the invoice.");
   }
+
   try {
     const result = await dbAddInvoice(
       ctx.botInfo.id,
       ctx.message.message_id,
       ctx.message.text,
       ctx.chat.id,
-      price
+      ctx.state.price
     );
+    console.log("Invoice added to database:", result);
   } catch (error) {
     console.error("Error adding invoice to database:", error);
   }
