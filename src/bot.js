@@ -1,19 +1,17 @@
 const config = require("../config");
 const { Telegraf, Context } = require("telegraf");
-const { dbAddInvoice } = require("./services/supabase");
-const { dbGetBotInfo } = require("./services/supabase");
-const { dbGetInvoice } = require("./services/supabase");
-const { dbUpdateBotPrice } = require("./services/supabase");
+const {
+  dbAddInvoice,
+  dbGetBotInfo,
+  dbGetInvoice,
+  dbUpdateBotPrice,
+} = require("./services/supabase");
 const { createThreadAndRun } = require("./services/openai/runCompletion");
 
 const BOT_TOKEN = config.BOT_TOKEN;
 
 // Initialize the bot
 const bot = new Telegraf(BOT_TOKEN);
-
-let botId;
-let price;
-let ownerId;
 
 // Middleware to set botInfo
 bot.use(async (ctx, next) => {
@@ -42,7 +40,7 @@ bot.command("changeprice", async (ctx) => {
   }
 });
 
-bot.on("text", async (ctx) => {
+bot.on("message:text", async (ctx) => {
   console.log("Received text message:", ctx.message.text);
 
   // Check if the message is a reply to the price prompt
